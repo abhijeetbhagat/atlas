@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use bytes::Bytes;
 use dashmap::DashMap;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-fn parse_input(input: &str) -> Command {
+pub fn parse_input(input: &str) -> Command {
     let input_array: Vec<&str> = input.trim().split(' ').collect();
     match input_array[0] {
         "set" => {
@@ -28,7 +28,7 @@ fn parse_input(input: &str) -> Command {
 }
 
 #[derive(Debug, PartialEq)]
-enum Command {
+pub enum Command {
     // set <key> <flags> <exptime> <data>
     Set(String, usize, u128, Bytes),
     Add(String, Bytes),
@@ -48,13 +48,11 @@ enum Command {
 }
 
 impl Command {
-    fn handle(self, map: Arc<DashMap<String, (u128, Bytes)>>) -> anyhow::Result<Bytes> {
+    pub fn handle(self, map: Arc<DashMap<String, (u128, Bytes)>>) -> anyhow::Result<Bytes> {
         match self {
             Command::Set(key, flags, exp_time, data) => {
                 let exp_time = if exp_time != 0 {
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)?
-                        .as_millis() + exp_time
+                    SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() + exp_time
                 } else {
                     0
                 };
@@ -68,9 +66,8 @@ impl Command {
             Command::Get(key) => {
                 if let Some(v) = map.get(&key) {
                     if v.0 != 0 {
-                        let current_time = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)?
-                            .as_millis();
+                        let current_time =
+                            SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
                         if v.0 >= current_time {
                             Ok(v.1.clone())
                         } else {

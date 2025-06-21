@@ -5,3 +5,6 @@ edition = "2024"
 
 [dependencies]
 tokio.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
