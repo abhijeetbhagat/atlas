@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["server", "client"]
+
+[workspace.dependencies]
+anyhow = "1.0.98"
+dashmap = "6.1.0"
+env_logger = "0.11.8"
+log = { version = "0.4.27", features = [] }
+tokio = { version = "1.45.1", features = ["rt", "rt-multi-thread", "macros", "net", "io-util"] }
+bytes = "1.10.1"
