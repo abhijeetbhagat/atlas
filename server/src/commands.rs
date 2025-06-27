@@ -21,6 +21,16 @@ pub fn parse_input(input: &str) -> Command {
                 return Command::Get(input_array[1].to_string());
             }
         }
+        "delete" => {
+            if input_array.len() == 2 {
+                return Command::Delete(input_array[1].to_string());
+            }
+        }
+        "version" => {
+            if input_array.len() == 1 {
+                return Command::Version;
+            }
+        }
         _ => {}
     }
 
@@ -81,12 +91,18 @@ impl Command {
                 }
             }
             Command::Gets(_) => Ok(Bytes::from("NOT IMPLEMENTED")),
-            Command::Delete(_) => Ok(Bytes::from("NOT IMPLEMENTED")),
+            Command::Delete(key) => {
+                if let Some(_) = map.remove(&key) {
+                    Ok(Bytes::from("DELETED"))
+                } else {
+                    Ok(Bytes::from("NOT FOUND"))
+                }
+            }
             Command::Incr(_) => Ok(Bytes::from("NOT IMPLEMENTED")),
             Command::Decr(_) => Ok(Bytes::from("NOT IMPLEMENTED")),
             Command::Cas(_, _) => Ok(Bytes::from("NOT IMPLEMENTED")),
             Command::Stats => Ok(Bytes::from("NOT IMPLEMENTED")),
-            Command::Version => Ok(Bytes::from("NOT IMPLEMENTED")),
+            Command::Version => Ok(Bytes::from(env!("CARGO_PKG_VERSION"))),
             Command::Flushall => Ok(Bytes::from("NOT IMPLEMENTED")),
             Command::Invalid => Ok(Bytes::from("NOT IMPLEMENTED")),
         }
@@ -112,6 +128,12 @@ mod tests {
 
         let cmd = parse_input("get abhi");
         assert_eq!(cmd, Command::Get("abhi".to_string()));
+
+        let cmd = parse_input("delete abhi");
+        assert_eq!(cmd, Command::Delete("abhi".to_string()));
+
+        let cmd = parse_input("blah abhi");
+        assert_eq!(cmd, Command::Invalid);
     }
 
     #[test]
@@ -140,14 +162,6 @@ mod tests {
         let out = parse_input("get abhi").handle(store.clone()).unwrap();
         assert_eq!(Bytes::from("python"), out);
 
-        let out = parse_input("set abhi 0 200 kotlin")
-            .handle(store.clone())
-            .unwrap();
-        assert_eq!(Bytes::from("STORED"), out);
-        thread::sleep(Duration::from_millis(300));
-        let out = parse_input("get abhi").handle(store.clone()).unwrap();
-        assert_eq!(Bytes::from("NOT FOUND"), out);
-
         let out = parse_input("set abhi 0 200 java")
             .handle(store.clone())
             .unwrap();
@@ -155,5 +169,17 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
         let out = parse_input("get abhi").handle(store.clone()).unwrap();
         assert_eq!(Bytes::from("java"), out);
+    }
+
+    #[test]
+    fn test_expiry() {
+        let store = Arc::new(DashMap::new());
+        let out = parse_input("set abhi 0 200 kotlin")
+            .handle(store.clone())
+            .unwrap();
+        assert_eq!(Bytes::from("STORED"), out);
+        thread::sleep(Duration::from_millis(300));
+        let out = parse_input("get abhi").handle(store.clone()).unwrap();
+        assert_eq!(Bytes::from("NOT FOUND"), out);
     }
 }

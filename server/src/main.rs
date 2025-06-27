@@ -1,7 +1,9 @@
+mod cache;
 mod commands;
 
 use crate::commands::parse_input;
 use bytes::Bytes;
+use clap::Parser;
 use dashmap::DashMap;
 use log::{error, info};
 use std::env::current_exe;
@@ -9,7 +11,6 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -23,13 +24,16 @@ struct Args {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
-    
+
     let args = Args::parse();
 
-    info!("memcached-rust v.0.1.0");
+    info!("memcached-rust v{}", env!("CARGO_PKG_VERSION"));
 
     let listener = TcpListener::bind((args.addr.clone(), args.port)).await?;
-    info!("{}", format!("server listening on {}:{}", args.addr, args.port));
+    info!(
+        "{}",
+        format!("server listening on {}:{}", args.addr, args.port)
+    );
 
     let map: Arc<DashMap<String, (u128, Bytes)>> = Arc::new(DashMap::new());
 

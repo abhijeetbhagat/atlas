@@ -1,9 +1,9 @@
 mod client;
 mod cluster_client;
 
+use crate::cluster_client::ClusterClient;
 use client::Client;
 use log::info;
-use crate::cluster_client::ClusterClient;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -15,13 +15,17 @@ async fn main() -> anyhow::Result<()> {
     // let result = client.get("abhi").await?;
     // info!("{:?}", result);
 
-    let mut client = ClusterClient::new(&[("127.0.0.1", 11211), ("127.0.0.2", 11211), ("127.0.0.3", 11211)]);
+    let mut client = ClusterClient::new(&[
+        ("127.0.0.1", 11211),
+        ("127.0.0.2", 11211),
+        ("127.0.0.3", 11211),
+    ]);
     client.set("abhi", 0, 200, "rust").await?;
     client.set("lilb", 0, 200, ".net").await?;
     client.set("pads", 0, 200, "react").await?;
     client.set("nisc", 0, 200, "java").await?;
     client.set("ashu", 0, 200, "java").await?;
-    
+
     info!("{}", client.get("abhi").await?);
     info!("{}", client.get("lilb").await?);
     info!("{}", client.get("pads").await?);
