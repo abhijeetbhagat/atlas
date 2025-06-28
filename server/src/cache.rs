@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::rc::Rc;
+use bytes::Bytes;
 
 struct Node<K, V> {
     k: K,
@@ -29,7 +30,7 @@ struct LruCache<K, V> {
     th: usize,
 }
 
-impl<K: Eq + Hash + Clone, V: Display + Clone> LruCache<K, V> {
+impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
     /// creates a new `LruCache` with the given threshold `th`
     fn new(th: usize) -> Self {
         LruCache {
@@ -117,7 +118,7 @@ impl<K: Eq + Hash + Clone, V: Display + Clone> LruCache<K, V> {
     fn print(&self) {
         let mut p = self.head.clone();
         while let Some(n) = p {
-            println!("{} ", n.borrow().v);
+            println!("{:?} ", n.borrow().v);
             p = n.borrow().next.clone();
         }
     }
@@ -198,4 +199,19 @@ fn test_accesses() {
     assert_eq!(cache.get(1), Some(1));
     assert_eq!(cache.tail(), 1);
     assert_eq!(cache.head(), 2);
+}
+
+#[test]
+fn test_generic() {
+    let mut cache = LruCache::new(5);
+    cache.insert(1, Bytes::from("abhi"));
+    cache.insert(2, Bytes::from("ash"));
+    cache.insert(3, Bytes::from("lilb"));
+    cache.insert(4, Bytes::from("pads"));
+    cache.insert(5, Bytes::from("zigg"));
+    assert_eq!(cache.get(3), Some(Bytes::from("lilb")));
+    assert_eq!(cache.tail(), Bytes::from("lilb"));
+    assert_eq!(cache.get(1), Some(Bytes::from("abhi")));
+    assert_eq!(cache.tail(), Bytes::from("abhi"));
+    assert_eq!(cache.head(), Bytes::from("ash"));
 }
