@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 use bytes::Bytes;
 
 struct Node<K, V> {
@@ -20,6 +21,40 @@ impl<K, V> Node<K, V> {
             next: None,
             prev: None,
         }
+    }
+}
+
+/// A thread-safe hash-map that uses lock striping.
+///
+/// Uses fixed sized buckets list.
+struct ConcurrentHashMap<K, V> {
+    buckets: Vec<Arc<RwLock<HashMap<K, V>>>>
+}
+
+impl<K: Hash + Eq, V: Clone> ConcurrentHashMap<K, V> {
+    /// returns a new `ConcurrentHashMap` with 16 buckets of hash-maps
+    pub fn new() -> Self {
+        Self { buckets: vec![Arc::new(RwLock::new(HashMap::new())); 16] }
+    }
+    
+    /// gets the bucket (hash-map) where key `k` should be inserted
+    pub fn get_bucket(k: &K) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        k.hash(&mut hasher);
+        let b = hasher.finish() % 16;
+        b
+    }
+
+    pub fn insert(&mut self, k: K, v: V) {
+        let b =Self::get_bucket(&k);
+        self.buckets[b as usize].write().unwrap().insert(k, v);
+    }
+    
+    pub fn get(&mut self, k: &K) -> Option<V> {
+        let b = Self::get_bucket(&k);
+        let g = self.buckets[b as usize].read().unwrap();
+        let v = g.get(&k);
+        v.cloned() // should we return a ref or a clone?
     }
 }
 
@@ -214,4 +249,18 @@ fn test_generic() {
     assert_eq!(cache.get(1), Some(Bytes::from("abhi")));
     assert_eq!(cache.tail(), Bytes::from("abhi"));
     assert_eq!(cache.head(), Bytes::from("ash"));
+}
+
+#[test]
+fn test_hm() {
+    let mut map = ConcurrentHashMap::new();
+    map.insert(1, 1);
+    map.insert(2, 2);
+    map.insert(3, 3);
+    map.insert(4, 4);
+    map.insert(5, 5);
+    map.insert(6, 6);
+    map.insert(7, 7);
+    assert_eq!(map.get(&1), Some(1));
+    assert_eq!(map.get(&7), Some(7));
 }
