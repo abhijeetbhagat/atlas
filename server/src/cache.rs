@@ -4,6 +4,7 @@ use std::fmt::{Debug, Display};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use bytes::Bytes;
 
 struct Node<K, V> {
@@ -56,23 +57,35 @@ impl<K: Hash + Eq, V: Clone> ConcurrentHashMap<K, V> {
         let v = g.get(&k);
         v.cloned() // should we return a ref or a clone?
     }
+    
+    pub fn remove(&mut self, k: &K) -> Option<V> {
+        let b = Self::get_bucket(&k);
+        self.buckets[b as usize].write().unwrap().remove(&k)
+    }
+    
+    pub fn contains_key(&self, k: &K) -> bool {
+        let b = Self::get_bucket(&k);
+        self.buckets[b as usize].read().unwrap().contains_key(&k)
+    }
 }
 
 struct LruCache<K, V> {
-    m: HashMap<K, Option<Rc<RefCell<Node<K, V>>>>>,
+    m: ConcurrentHashMap<K, Option<Rc<RefCell<Node<K, V>>>>>,
     head: Option<Rc<RefCell<Node<K, V>>>>,
     tail: Option<Rc<RefCell<Node<K, V>>>>,
     th: usize,
+    len: AtomicUsize,
 }
 
 impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
     /// creates a new `LruCache` with the given threshold `th`
     fn new(th: usize) -> Self {
         LruCache {
-            m: HashMap::new(),
+            m: ConcurrentHashMap::new(),
             head: None,
             tail: None,
             th,
+            len: AtomicUsize::new(0),
         }
     }
 
@@ -92,6 +105,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
                 self.head = self.head.clone().unwrap().borrow().next.clone();
                 // remove from map
                 self.m.remove(&head_k);
+                self.len.fetch_sub(1, Ordering::Relaxed);
             }
             self.tail.clone().unwrap().borrow_mut().next = new_node.clone();
             new_node.clone().unwrap().borrow_mut().prev = self.tail.clone();
@@ -99,6 +113,8 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
         }
 
         self.m.insert(k, new_node.clone());
+        // todo abhi: check the ordering
+        self.len.fetch_add(1, Ordering::Relaxed);
     }
 
     fn remove(&mut self, k: K) -> Option<V> where
@@ -124,6 +140,9 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
         if self.m.contains_key(&k) {
             let node = self.m.get(&k).unwrap().clone();
             self.m.remove(&k);
+            
+            // todo abhi: check the ordering
+            self.len.fetch_sub(1, Ordering::Relaxed);
 
             // tail node; del only prev & set tail to prev node
             if node.clone().unwrap().borrow().next.is_none() {
@@ -179,7 +198,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
     }
 
     fn len(&self) -> usize {
-        self.m.len()
+        self.len.load(Ordering::Relaxed)
     }
 }
 
