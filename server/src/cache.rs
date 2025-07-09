@@ -1,11 +1,11 @@
+use bytes::Bytes;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use bytes::Bytes;
+use std::sync::{Arc, RwLock};
 
 struct Node<K, V> {
     k: K,
@@ -29,15 +29,17 @@ impl<K, V> Node<K, V> {
 ///
 /// Uses fixed sized buckets list.
 struct ConcurrentHashMap<K, V> {
-    buckets: Vec<Arc<RwLock<HashMap<K, V>>>>
+    buckets: Vec<Arc<RwLock<HashMap<K, V>>>>,
 }
 
 impl<K: Hash + Eq, V: Clone> ConcurrentHashMap<K, V> {
     /// returns a new `ConcurrentHashMap` with 16 buckets of hash-maps
     pub fn new() -> Self {
-        Self { buckets: vec![Arc::new(RwLock::new(HashMap::new())); 16] }
+        Self {
+            buckets: vec![Arc::new(RwLock::new(HashMap::new())); 16],
+        }
     }
-    
+
     /// gets the bucket (hash-map) where key `k` should be inserted
     pub fn get_bucket(k: &K) -> u64 {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -47,22 +49,22 @@ impl<K: Hash + Eq, V: Clone> ConcurrentHashMap<K, V> {
     }
 
     pub fn insert(&mut self, k: K, v: V) {
-        let b =Self::get_bucket(&k);
+        let b = Self::get_bucket(&k);
         self.buckets[b as usize].write().unwrap().insert(k, v);
     }
-    
+
     pub fn get(&mut self, k: &K) -> Option<V> {
         let b = Self::get_bucket(&k);
         let g = self.buckets[b as usize].read().unwrap();
         let v = g.get(&k);
         v.cloned() // should we return a ref or a clone?
     }
-    
+
     pub fn remove(&mut self, k: &K) -> Option<V> {
         let b = Self::get_bucket(&k);
         self.buckets[b as usize].write().unwrap().remove(&k)
     }
-    
+
     pub fn contains_key(&self, k: &K) -> bool {
         let b = Self::get_bucket(&k);
         self.buckets[b as usize].read().unwrap().contains_key(&k)
@@ -117,8 +119,10 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
         self.len.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn remove(&mut self, k: K) -> Option<V> where
-    K: Eq + Hash {
+    fn remove(&mut self, k: K) -> Option<V>
+    where
+        K: Eq + Hash,
+    {
         if let Some(n) = self.remove_internal(k) {
             match Rc::try_unwrap(n) {
                 Ok(n) => {
@@ -135,12 +139,14 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
     }
 
     /// removes an entry from the `LruCache`
-    fn remove_internal(&mut self, k: K) -> Option<Rc<RefCell<Node<K, V>>>> where
-    K: Eq + Hash {
+    fn remove_internal(&mut self, k: K) -> Option<Rc<RefCell<Node<K, V>>>>
+    where
+        K: Eq + Hash,
+    {
         if self.m.contains_key(&k) {
             let node = self.m.get(&k).unwrap().clone();
             self.m.remove(&k);
-            
+
             // todo abhi: check the ordering
             self.len.fetch_sub(1, Ordering::Relaxed);
 
