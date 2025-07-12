@@ -140,7 +140,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
                     .k
                     .clone();
                 // set head to next node
-                self.ll.inner.write().unwrap().head = self
+                let head_next = self
                     .ll
                     .inner
                     .read()
@@ -152,6 +152,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
                     .unwrap()
                     .next
                     .clone();
+                self.ll.inner.write().unwrap().head = head_next;
                 // remove from map
                 self.m.remove(&head_k);
                 self.len.fetch_sub(1, Ordering::Relaxed);
@@ -308,6 +309,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use bytes::Bytes;
     use crate::cache::{ConcurrentHashMap, LruCache};
 
@@ -391,5 +393,23 @@ mod tests {
         map.insert(7, 7);
         assert_eq!(map.get(&1), Some(1));
         assert_eq!(map.get(&7), Some(7));
+    }
+    
+    #[test]
+    fn test_concurrent_ops() {
+        use crossbeam_utils::thread;
+        let cache = Arc::new(LruCache::new(5));
+        thread::scope(|s| {
+            for i in 1..=6 {
+                let cache = cache.clone();
+                s.spawn(move |_| {
+                    cache.insert(i, i);
+                });
+            }
+        }).unwrap();
+
+        assert_eq!(cache.len(), 5);
+        assert_eq!(cache.get(&1), None);
+        assert_eq!(cache.get(&4), Some(4));
     }
 }
