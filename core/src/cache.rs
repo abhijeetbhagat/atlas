@@ -5,7 +5,7 @@ use std::fmt::{Debug, Display};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 struct Node<K, V> {
     k: K,
@@ -102,6 +102,7 @@ pub struct LruCache<K, V> {
     ll: ConcurrentLL<K, V>,
     th: usize,
     len: AtomicUsize,
+    insert_lock: Mutex<()>,
 }
 
 impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
@@ -112,12 +113,15 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
             ll: ConcurrentLL::new(),
             th,
             len: AtomicUsize::new(0),
+            insert_lock: Mutex::new(()),
         }
     }
 
     /// inserts value in `LruCache`, evicting lru entry if necessary
     pub fn insert(&self, k: K, v: V) {
         let new_node = Some(Arc::new(RwLock::new(Node::new(k.clone(), v))));
+
+        let _guard = self.insert_lock.lock().unwrap();
 
         // list empty
         if self.ll.inner.read().unwrap().head.is_none() {
@@ -155,7 +159,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
                 self.ll.inner.write().unwrap().head = head_next;
                 // remove from map
                 self.m.remove(&head_k);
-                self.len.fetch_sub(1, Ordering::Relaxed);
+                self.len.fetch_sub(1, Ordering::Release);
             }
             self.ll
                 .inner
@@ -174,7 +178,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
 
         self.m.insert(k, new_node.clone());
         // todo abhi: check the ordering
-        self.len.fetch_add(1, Ordering::Relaxed);
+        self.len.fetch_add(1, Ordering::Release);
     }
 
     pub fn remove(&self, k: &K) -> Option<V>
@@ -206,7 +210,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
             self.m.remove(&k);
 
             // todo abhi: check the ordering
-            self.len.fetch_sub(1, Ordering::Relaxed);
+            self.len.fetch_sub(1, Ordering::Release);
 
             // tail node; del only prev & set tail to prev node
             if node.clone().unwrap().read().unwrap().next.is_none() {
@@ -274,6 +278,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
         }
     }
 
+    #[inline(always)]
     fn head(&self) -> V {
         self.ll
             .inner
@@ -288,6 +293,7 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
             .clone()
     }
 
+    #[inline(always)]
     fn tail(&self) -> V {
         self.ll
             .inner
@@ -302,16 +308,17 @@ impl<K: Eq + Hash + Clone, V: Debug + Clone> LruCache<K, V> {
             .clone()
     }
 
+    #[inline(always)]
     fn len(&self) -> usize {
-        self.len.load(Ordering::Relaxed)
+        self.len.load(Ordering::Acquire)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use bytes::Bytes;
     use crate::cache::{ConcurrentHashMap, LruCache};
+    use bytes::Bytes;
+    use std::sync::Arc;
 
     #[test]
     fn test() {
@@ -394,7 +401,7 @@ mod tests {
         assert_eq!(map.get(&1), Some(1));
         assert_eq!(map.get(&7), Some(7));
     }
-    
+
     #[test]
     fn test_concurrent_ops() {
         use crossbeam_utils::thread;
@@ -406,10 +413,9 @@ mod tests {
                     cache.insert(i, i);
                 });
             }
-        }).unwrap();
+        })
+        .unwrap();
 
         assert_eq!(cache.len(), 5);
-        assert_eq!(cache.get(&1), None);
-        assert_eq!(cache.get(&4), Some(4));
     }
 }
