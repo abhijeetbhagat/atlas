@@ -1,10 +1,9 @@
-mod cache;
 mod commands;
 
 use crate::commands::parse_input;
 use bytes::Bytes;
 use clap::Parser;
-use dashmap::DashMap;
+use core::cache::LruCache;
 use log::{error, info};
 use std::env::current_exe;
 use std::sync::Arc;
@@ -35,7 +34,8 @@ async fn main() -> anyhow::Result<()> {
         format!("server listening on {}:{}", args.addr, args.port)
     );
 
-    let map: Arc<DashMap<String, (u128, Bytes)>> = Arc::new(DashMap::new());
+    // todo abhi: make cache limit configurable
+    let map: Arc<LruCache<String, (u128, Bytes)>> = Arc::new(LruCache::new(100));
 
     while let Ok((stream, _)) = listener.accept().await {
         let map = map.clone();
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn handle(
     mut stream: TcpStream,
-    map: Arc<DashMap<String, (u128, Bytes)>>,
+    map: Arc<LruCache<String, (u128, Bytes)>>,
 ) -> anyhow::Result<()> {
     let mut buf = vec![0; 1024];
 

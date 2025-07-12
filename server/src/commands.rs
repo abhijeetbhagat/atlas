@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use dashmap::DashMap;
+use core::cache::LruCache;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -58,7 +58,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn handle(self, map: Arc<DashMap<String, (u128, Bytes)>>) -> anyhow::Result<Bytes> {
+    pub fn handle(self, cache: Arc<LruCache<String, (u128, Bytes)>>) -> anyhow::Result<Bytes> {
         match self {
             Command::Set(key, flags, exp_time, data) => {
                 let exp_time = if exp_time != 0 {
@@ -66,7 +66,7 @@ impl Command {
                 } else {
                     0
                 };
-                map.insert(key, (exp_time, data));
+                cache.insert(key, (exp_time, data));
                 Ok(Bytes::from("STORED"))
             }
             Command::Add(_, _) => Ok(Bytes::from("NOT IMPLEMENTED")),
@@ -74,7 +74,7 @@ impl Command {
             Command::Append(_, _) => Ok(Bytes::from("NOT IMPLEMENTED")),
             Command::Prepend(_, _) => Ok(Bytes::from("NOT IMPLEMENTED")),
             Command::Get(key) => {
-                if let Some(v) = map.get(&key) {
+                if let Some(v) = cache.get(&key) {
                     if v.0 != 0 {
                         let current_time =
                             SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
@@ -92,7 +92,7 @@ impl Command {
             }
             Command::Gets(_) => Ok(Bytes::from("NOT IMPLEMENTED")),
             Command::Delete(key) => {
-                if let Some(_) = map.remove(&key) {
+                if let Some(_) = cache.remove(&key) {
                     Ok(Bytes::from("DELETED"))
                 } else {
                     Ok(Bytes::from("NOT FOUND"))
@@ -111,9 +111,9 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
+    use crate::commands::LruCache;
     use crate::commands::{Command, parse_input};
     use bytes::Bytes;
-    use dashmap::DashMap;
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_storage() {
-        let store = Arc::new(DashMap::new());
+        let store = Arc::new(LruCache::new(5));
         let out = parse_input("set abhi 0 200 rust")
             .handle(store.clone())
             .unwrap();
@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_expiry() {
-        let store = Arc::new(DashMap::new());
+        let store = Arc::new(LruCache::new(4));
         let out = parse_input("set abhi 0 200 kotlin")
             .handle(store.clone())
             .unwrap();

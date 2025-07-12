@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 anyhow.workspace = true
-dashmap.workspace = true
 env_logger.workspace = true
 log.workspace = true
 tokio.workspace = true
 bytes.workspace = true
 clap.workspace = true
+core = {path = "../core"}
