@@ -1,6 +1,5 @@
 use log::info;
 use murmur3::murmur3_32;
-use std::hash::Hash;
 use std::io::Cursor;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -18,6 +17,7 @@ impl ClusterClient {
         }
     }
 
+    /// sets the `value` for the given `key` with `flags` and expiry time `exp_time`
     pub async fn set(
         &mut self,
         key: &str,
@@ -38,6 +38,7 @@ impl ClusterClient {
         Ok(String::from_utf8_lossy(&buf[..size]).into())
     }
 
+    /// gets the value for the given `key`
     pub async fn get(&mut self, key: &str) -> anyhow::Result<String> {
         let stream = self.get_stream(key).await?;
 
@@ -49,6 +50,7 @@ impl ClusterClient {
         Ok(String::from_utf8_lossy(&buf[..size]).into())
     }
 
+    /// gets the correct `server` based on the hash of the `key`
     async fn get_stream(&mut self, key: &str) -> anyhow::Result<&mut TcpStream> {
         let hash = murmur3_32(&mut Cursor::new(key), 0)? as usize;
         let server_index = hash % self.cluster.len();

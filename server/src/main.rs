@@ -4,10 +4,8 @@ use crate::commands::parse_input;
 use bytes::Bytes;
 use clap::Parser;
 use core::cache::LruCache;
-use log::{error, info};
-use std::env::current_exe;
+use log::info;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -18,6 +16,9 @@ struct Args {
 
     #[arg(long, default_value = "11211")]
     port: u16,
+
+    #[arg(long, default_value = "100")]
+    cache_limit: usize,
 }
 
 #[tokio::main]
@@ -34,8 +35,7 @@ async fn main() -> anyhow::Result<()> {
         format!("server listening on {}:{}", args.addr, args.port)
     );
 
-    // todo abhi: make cache limit configurable
-    let map: Arc<LruCache<String, (u128, Bytes)>> = Arc::new(LruCache::new(100));
+    let map: Arc<LruCache<String, (u128, Bytes)>> = Arc::new(LruCache::new(args.cache_limit));
 
     while let Ok((stream, _)) = listener.accept().await {
         let map = map.clone();

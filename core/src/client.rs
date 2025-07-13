@@ -19,7 +19,7 @@ impl Client {
         exp_time: u32,
         value: &str,
     ) -> anyhow::Result<String> {
-        let size = self
+        let _size = self
             .stream
             .write(format!("set {} {} {} {}", key, flags, exp_time, value).as_bytes())
             .await?;
@@ -30,7 +30,7 @@ impl Client {
     }
 
     pub async fn get(&mut self, key: &str) -> anyhow::Result<String> {
-        let size = self.stream.write(format!("get {}", key).as_bytes()).await?;
+        let _size = self.stream.write(format!("get {}", key).as_bytes()).await?;
         self.stream.flush().await?;
         let mut buf = vec![0; 1024];
         let size = self.stream.read(&mut buf).await?;
